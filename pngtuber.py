@@ -12,7 +12,6 @@ handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.info("test")
 
 import traceback
 
@@ -155,7 +154,6 @@ class PNGTuberState(Layer):
             self._orig_images.append(orig_image)
             scaled_image = self._resize(orig_image, SCREEN_WIDTH, SCREEN_HEIGHT)
             self._scaled_images.append(scaled_image)
-            self._frames = len(self._scaled_images)
         self._image = image = self.get_first_image()
         if image is not None:
             self.rect = image.get_rect()
