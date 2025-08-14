@@ -374,17 +374,21 @@ class App:
                             if data == b"talk":
                                 png_tuber_state.talk()
                             else:
-                                cmd, body = data.split(b":", 1)
-                                body = body.strip()
-                                if cmd == b"state":
-                                    state_index = int(body)
-                                    if state_index < len(states):
-                                        png_tuber_state = states[state_index]
-                                        png_tuber_state.resize(s_width, s_height)
+                                try:
+                                    cmd, body = data.split(b":", 1)
+                                    body = body.strip()
+                                    if cmd == b"state":
+                                        state_index = int(body)
+                                        if state_index < len(states):
+                                            png_tuber_state = states[state_index]
+                                            png_tuber_state.resize(s_width, s_height)
+                                        else:
+                                            logger.error("State index out of range")
                                     else:
-                                        logger.error("State index out of range")
-                                else:
-                                    logger.error("Unknown cmd")
+                                        logger.error("Unknown cmd")
+                                except ValueError as err:
+                                    logger.error(err)
+                                    logger.error(f"data: {data}")
                         else:
                             logger.info(f"{s.fileno()} closed connection")
                             s.close()
