@@ -38,6 +38,7 @@ Below you will find a description of the state attributes.
 
 ## Layers support
 PNGTuber supports multiple layers per state, which can be configured via `config.ini` and `layers.ini`. A pause can be configured between layer animations, either as a static number or as a range for the random number generator.
+
 ![scared2](https://github.com/user-attachments/assets/c348d128-aa82-461b-b39f-011de8b53ac1)
 
 ### Configuration
