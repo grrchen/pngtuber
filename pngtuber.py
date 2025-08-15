@@ -1,4 +1,6 @@
 # Standard library imports.
+import time
+import random
 import socket
 import select
 import random
@@ -76,9 +78,14 @@ def scale(img, dimension):
 class Layer(pg.sprite.Sprite):
 
     rect = None
+    _loop_pause: int | list = None
+    _loop_end_time: float = None
+    __loop_pause: int = None
+    _random_loop_pause: bool = False
 
-    def __init__(self, image_path):
+    def __init__(self, image_path, loop_pause=None):
         super().__init__()
+        self.loop_pause = loop_pause
         self._last_resize_req = (SCREEN_WIDTH, SCREEN_HEIGHT)
         orig_image = self.load_image(image_path)
         self._orig_image = orig_image
@@ -89,11 +96,11 @@ class Layer(pg.sprite.Sprite):
         self._image = image = scale(orig_image, (width, height))
         self.rect = image.get_rect()
 
-    def load_image(self, image_path):
+    def load_image(self, image_path, loop_pause=None):
         if animated_images_supported:
             for file_ext in ANIMATED_FILE_EXT:
                 if image_path.lower().endswith(file_ext):
-                    image = gif_pg.load(image_path)
+                    image = gif_pg.load(image_path, 0)
                     break
             else:
                 image = pg.image.load(image_path)
@@ -130,6 +137,31 @@ class Layer(pg.sprite.Sprite):
 
     def talk(self):
         pass
+
+    def update(self):
+        if self._image.ended:
+            if self._loop_end_time is None:
+                self._loop_end_time = time.time()
+            if self.__loop_pause is not None and time.time() - self._loop_end_time < self.__loop_pause:
+                return
+            else:
+                self._image.reset()
+                self._loop_end_time = None
+                if self._random_loop_pause:
+                    self.__loop_pause = random.randint(*self._loop_pause)
+
+    @property
+    def loop_pause(self):
+        return self._loop_pause
+
+    @loop_pause.setter
+    def loop_pause(self, value):
+        self._loop_pause = value
+        if isinstance(value, (list, tuple)):
+            self.__loop_pause = random.randint(*value)
+            self._random_loop_pause = True
+        elif isinstance(value, int):
+            self.__loop_pause = value
 
 
 class PNGTuberState(Layer):
@@ -311,8 +343,15 @@ class App:
                 layer_config = self._layers_config[layer_name]
                 base_dir = layer_config["base_dir"]
                 image = layer_config["image"]
+                loop_pause = layer_config.get("loop_pause", None)
+                if loop_pause is not None:
+                    tmp = loop_pause.split("-")
+                    if len(tmp) == 1:
+                        loop_pause = int(loop_pause)
+                    else:
+                        loop_pause = [int(value) for value in tmp]
                 image_path = os.path.join(base_dir, image)
-                layer = Layer(image_path)
+                layer = Layer(image_path, loop_pause)
                 state_group.add(layer)
             states.append(state_group)
 
