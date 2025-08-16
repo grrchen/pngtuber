@@ -30,7 +30,7 @@ Below you will find a description of the state attributes.
 
 | Field  | Description |
 | ------------- | ------------- |
-| base_dir  | folder relativ to `cofig.ini`  |
+| base_dir  | folder relativ to `config.ini`  |
 | ec_mc  | eyes closed, mouth closed  |
 | ec_mo  | eyes closed, mouth open  |
 | eo_mc  | eyes open, mouth closed  |
