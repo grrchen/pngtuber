@@ -370,6 +370,8 @@ class App:
         screen = pg.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT], pg.RESIZABLE)
         background_color = self._background_color
         logger.debug(f"background_color: {background_color}")
+        if background_color.startswith("#"):
+            background_color = pg.Color(background_color)
         screen.fill(background_color)
         s_width, s_height = screen.get_width(), screen.get_height()
         self._s_width, self._s_height = s_width, s_height
