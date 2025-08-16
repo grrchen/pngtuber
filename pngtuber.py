@@ -1,4 +1,6 @@
 # Standard library imports.
+import time
+import random
 import socket
 import select
 import random
@@ -12,7 +14,6 @@ handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.info("test")
 
 import traceback
 
@@ -61,7 +62,8 @@ class StateGroup(pg.sprite.Group):
             sprite.resize(w, h)
 
 
-ANIMATED_FILE_EXT = (".apng", ".gif")
+ANIMATED_FILE_EXT: tuple = (".apng", ".gif")
+IGNORE_RESIZE_REQ_MSG: str = "Ignoring request, size did not change"
 
 
 def scale(img, dimension):
@@ -73,12 +75,101 @@ def scale(img, dimension):
     return scaled_image
 
 
-class PNGTuberState(pg.sprite.Sprite):
+class Layer(pg.sprite.Sprite):
+
+    rect = None
+    _loop_pause: int | list = None
+    _loop_end_time: float = None
+    __loop_pause: int = None
+    _random_loop_pause: bool = False
+
+    def __init__(self, image_path, loop_pause=None):
+        super().__init__()
+        self.loop_pause = loop_pause
+        self._last_resize_req = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        orig_image = self.load_image(image_path)
+        self._orig_image = orig_image
+        w, h = orig_image.get_size()
+        ratio = self.get_ratio(w, h, SCREEN_WIDTH, SCREEN_HEIGHT)
+        width = int(w*ratio)
+        height = int(h*ratio)
+        self._image = image = scale(orig_image, (width, height))
+        self.rect = image.get_rect()
+
+    def load_image(self, image_path, loop_pause=None):
+        if animated_images_supported:
+            for file_ext in ANIMATED_FILE_EXT:
+                if image_path.lower().endswith(file_ext):
+                    image = gif_pg.load(image_path, 0)
+                    break
+            else:
+                image = pg.image.load(image_path)
+        else:
+            image = pg.image.load(image_path)
+        return image
+
+    @property
+    def image(self):
+        if isinstance(self._image, gif_pg.GIFPygame):
+            return self._image.blit_ready()
+        return self._image
+
+    def get_ratio(self, w, h, sw, sh):
+        rw = sw / w
+        rh = sh / h
+        ratio = rw if rw < rh else rh
+        return ratio
+
+    def _resize(self, image, w, h):
+        iw, ih = image.get_size()
+        ratio = self.get_ratio(iw, ih, w, h)
+        width = int(iw*ratio)
+        height = int(ih*ratio)
+        return scale(image, (width, height))
+
+    def resize(self, w, h):
+        resize_req = (w, h)
+        if self._last_resize_req == resize_req:
+            logger.debug(IGNORE_RESIZE_REQ_MSG)
+            return
+        self._last_resize_req = resize_req
+        self._image = self._resize(self._orig_image, w, h)
+
+    def talk(self):
+        pass
+
+    def update(self):
+        if self._image.ended:
+            if self._loop_end_time is None:
+                self._loop_end_time = time.time()
+            if self.__loop_pause is not None and time.time() - self._loop_end_time < self.__loop_pause:
+                return
+            else:
+                self._image.reset()
+                self._loop_end_time = None
+                if self._random_loop_pause:
+                    self.__loop_pause = random.randint(*self._loop_pause)
+
+    @property
+    def loop_pause(self):
+        return self._loop_pause
+
+    @loop_pause.setter
+    def loop_pause(self, value):
+        self._loop_pause = value
+        if isinstance(value, (list, tuple)):
+            self.__loop_pause = random.randint(*value)
+            self._random_loop_pause = True
+        elif isinstance(value, int):
+            self.__loop_pause = value
+
+
+class PNGTuberState(Layer):
 
     rect = None
 
     def __init__(self, pos, base_dir, eo_mc, ec_mc, eo_mo, ec_mo):
-        super().__init__()
+        pg.sprite.Sprite.__init__(self)
         self._talk: bool = False
         self._force_update: bool = False
         self._orig_images = []
@@ -90,25 +181,11 @@ class PNGTuberState(pg.sprite.Sprite):
                 self._orig_images.append(None)
                 self._scaled_images.append(None)
                 continue
-            state_image = os.path.join(base_dir, state_image)
-
-            if animated_images_supported:
-                for file_ext in ANIMATED_FILE_EXT:
-                    if state_image.lower().endswith(file_ext):
-                        orig_image = gif_pg.load(state_image)
-                        break
-                else:
-                    orig_image = pg.image.load(state_image)
-            else:
-                orig_image = pg.image.load(state_image)
+            state_image_path = os.path.join(base_dir, state_image)
+            orig_image = self.load_image(state_image_path)
             self._orig_images.append(orig_image)
-            w, h = orig_image.get_size()
-            ratio = self.get_ratio(w, h, SCREEN_WIDTH, SCREEN_HEIGHT)
-            width = int(w*ratio)
-            height = int(h*ratio)
-            scaled_image = scale(orig_image, (width, height))
+            scaled_image = self._resize(orig_image, SCREEN_WIDTH, SCREEN_HEIGHT)
             self._scaled_images.append(scaled_image)
-            self._frames = len(self._scaled_images)
         self._image = image = self.get_first_image()
         if image is not None:
             self.rect = image.get_rect()
@@ -124,27 +201,17 @@ class PNGTuberState(pg.sprite.Sprite):
             if image is not None:
                 return image
 
-    def get_ratio(self, w, h, sw, sh):
-        rw = sw / w
-        rh = sh / h
-        ratio = rw if rw < rh else rh
-        return ratio
-
     def resize(self, w, h):
         resize_req = (w, h)
         if self._last_resize_req == resize_req:
-            logger.debug("Ignoring request, size did not change")
+            logger.debug(IGNORE_RESIZE_REQ_MSG)
             return
         self._last_resize_req = resize_req
         self._scaled_images = []
         for orig_image in self._orig_images:
             if orig_image is None:
                 continue
-            iw, ih = orig_image.get_size()
-            ratio = self.get_ratio(iw, ih, w, h)
-            width = int(iw*ratio)
-            height = int(ih*ratio)
-            self._scaled_images.append(scale(orig_image, (width, height)))
+            self._scaled_images.append(self._resize(orig_image, w, h))
 
     def talk(self):
         if not self._talk:
@@ -209,11 +276,6 @@ class PNGTuberState(pg.sprite.Sprite):
                 self.time = pg.time.get_ticks()
                 self._state = Eyes.OPEN
                 logger.debug("Eyes opend")
-    @property
-    def image(self):
-        if isinstance(self._image, gif_pg.GIFPygame):
-            return self._image.blit_ready()
-        return self._image
 
 
 class App:
@@ -235,6 +297,9 @@ class App:
     def load_config(self):
         self._config = config = configparser.ConfigParser()
         config.read('config.ini')
+
+        self._layers_config = layers_config = configparser.ConfigParser()
+        layers_config.read('layers.ini')
 
     def load_app_config(self):
         try:
@@ -265,10 +330,29 @@ class App:
                 eo_mc = state.get("eo_mc", None)
                 ec_mo = state.get("ec_mo", None)
                 eo_mo = state.get("eo_mo", None)
+            layers: str = state.get("layers", None)
+            layer_list: list = []
+            if layers is not None:
+                for layer_name in layers.split(","):
+                    layer_list.append(layer_name.strip())
             png_tuber_state = PNGTuberState((0, 0), base_dir, eo_mc, ec_mc, eo_mo, ec_mo)
             png_tuber_state.resize(self._s_width, self._s_height)
             state_group = StateGroup()
             state_group.add(png_tuber_state)
+            for layer_name in layer_list:
+                layer_config = self._layers_config[layer_name]
+                base_dir = layer_config["base_dir"]
+                image = layer_config["image"]
+                loop_pause = layer_config.get("loop_pause", None)
+                if loop_pause is not None:
+                    tmp = loop_pause.split("-")
+                    if len(tmp) == 1:
+                        loop_pause = int(loop_pause)
+                    else:
+                        loop_pause = [int(value) for value in tmp]
+                image_path = os.path.join(base_dir, image)
+                layer = Layer(image_path, loop_pause)
+                state_group.add(layer)
             states.append(state_group)
 
     def loop(self):
@@ -327,17 +411,21 @@ class App:
                             if data == b"talk":
                                 png_tuber_state.talk()
                             else:
-                                cmd, body = data.split(b":", 1)
-                                body = body.strip()
-                                if cmd == b"state":
-                                    state_index = int(body)
-                                    if state_index < len(states):
-                                        png_tuber_state = states[state_index]
-                                        png_tuber_state.resize(s_width, s_height)
+                                try:
+                                    cmd, body = data.split(b":", 1)
+                                    body = body.strip()
+                                    if cmd == b"state":
+                                        state_index = int(body)
+                                        if state_index < len(states):
+                                            png_tuber_state = states[state_index]
+                                            png_tuber_state.resize(s_width, s_height)
+                                        else:
+                                            logger.error("State index out of range")
                                     else:
-                                        logger.error("State index out of range")
-                                else:
-                                    logger.error("Unknown cmd")
+                                        logger.error("Unknown cmd")
+                                except ValueError as err:
+                                    logger.error(err)
+                                    logger.error(f"data: {data}")
                         else:
                             logger.info(f"{s.fileno()} closed connection")
                             s.close()
