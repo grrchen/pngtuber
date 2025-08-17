@@ -85,3 +85,18 @@ loop_pause=5-10
 The ice breath reappears after 5 to 10 seconds and the flickering of the light after 10 to 30 seconds.
 
 ![scared](https://github.com/user-attachments/assets/641da7d4-36a8-4d4c-9e68-4b672d1ffc83)
+
+## Socket communication
+### Samples
+#### Talk
+
+```bash
+echo -ne "talk\r\n" | netcat localhost 8089 -w 0
+```
+
+#### Change state to state number 4
+
+```bash
+echo -ne "state:4\r\n" | netcat localhost 8089 -w 0
+```
+
