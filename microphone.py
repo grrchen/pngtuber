@@ -247,7 +247,7 @@ class RecGui(Tk):
                 logger.debug(f"♬ ♪ ٩(ˊᗜˋ*)و")
                 if self.connected:
                     try:
-                        self._s.send(b"talk")
+                        self._s.send(b"talk\r\n")
                     except:
                         self.connected = False
             if volume_norm < (s + 5) and volume_norm > (s - 5):

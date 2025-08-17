@@ -136,7 +136,7 @@ class States(Tk):
     def on_set_state(self, *args):
         state = self.cbx_states.current()
         try:
-            last_state = self._last_state = f"state:{state}".encode()
+            last_state = self._last_state = f"state:{state}\r\n".encode()
             self._s.send(last_state)
         except (BrokenPipeError, ConnectionResetError):
             self.connected = False

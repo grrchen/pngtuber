@@ -285,6 +285,7 @@ class App:
     _s_height: int
 
     def __init__(self):
+        self._command_buffer: dict = {}
         self.loop()
 
     def connect(self):
@@ -355,13 +356,38 @@ class App:
                 state_group.add(layer)
             states.append(state_group)
 
+    def get_next_command(self, s) -> bytes:
+        command_buffer = self._command_buffer
+        command: bytes = command_buffer.get(s, b"")
+        new_data: bytes = s.recv(1024)
+        if not new_data:
+            del command_buffer[s]
+            self._socket_list.remove(s)
+            return None
+        data: bytes = command + new_data
+        if len(data) == 0:
+            return None
+        last_char: bytes = b""
+        command = b""
+        for i, char in enumerate(data):
+            char = bytes([char])
+            if last_char == b"\r" and char == b"\n":
+                command_buffer[s] = data[i+1:]
+                return command[:-1]
+            command += char
+            last_char = char
+        if command:
+            command_buffer[s] = command_buffer.get(s, b"") + command
+        return None
+
     def loop(self):
         self.load_config()
         self.load_app_config()
 
         self.connect()
         server = self._server
-        socket_list = [server]
+        self._socket_list = socket_list = [server]
+        command_buffer = self._command_buffer
 
         # Initialise pygame
         pg.init()
@@ -408,7 +434,10 @@ class App:
                     # handle all other sockets
                     try:
                         # data = s.recv(BUFSIZ)
-                        data = s.recv(1024)
+                        #data = s.recv(1024)
+                        data = self.get_next_command(s)
+                        if data is None:
+                            continue
                         if data:
                             if data == b"talk":
                                 png_tuber_state.talk()
@@ -431,9 +460,11 @@ class App:
                         else:
                             logger.info(f"{s.fileno()} closed connection")
                             s.close()
+                            del command_buffer[s]
                             socket_list.remove(s)
                     except (socket.error):
                         # Remove
+                        del command_buffer[s]
                         socket_list.remove(s)
 
             # Check events

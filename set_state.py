@@ -24,5 +24,5 @@ port = int(app_config.get("port", 8089))
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((host, port))
-s.send(f"state:{state}".encode("utf-8"))
+s.send(f"state:{state}\r\n".encode("utf-8"))
 s.close()
