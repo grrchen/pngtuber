@@ -83,14 +83,14 @@ class Layer(pg.sprite.Sprite):
     __loop_pause: int = None
     _random_loop_pause: bool = False
 
-    def __init__(self, image_path, loop_pause=None):
+    def __init__(self, image_path, width, height, loop_pause=None):
         super().__init__()
         self.loop_pause = loop_pause
-        self._last_resize_req = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        self._last_resize_req = (width, height)
         orig_image = self.load_image(image_path)
         self._orig_image = orig_image
         w, h = orig_image.get_size()
-        ratio = self.get_ratio(w, h, SCREEN_WIDTH, SCREEN_HEIGHT)
+        ratio = self.get_ratio(w, h, width, height)
         width = int(w*ratio)
         height = int(h*ratio)
         self._image = image = scale(orig_image, (width, height))
@@ -168,14 +168,14 @@ class PNGTuberState(Layer):
 
     rect = None
 
-    def __init__(self, pos, base_dir, eo_mc, ec_mc, eo_mo, ec_mo):
+    def __init__(self, pos, base_dir, eo_mc, ec_mc, eo_mo, ec_mo, width: int, height: int):
         pg.sprite.Sprite.__init__(self)
         self._talk: bool = False
         self._force_update: bool = False
         self._orig_images = []
         self._scaled_images = []
         self._current_frame = 0
-        self._last_resize_req = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        self._last_resize_req = (width, height)
         for state_image in (eo_mc, ec_mc, eo_mo, ec_mo):
             if state_image is None:
                 self._orig_images.append(None)
@@ -184,7 +184,7 @@ class PNGTuberState(Layer):
             state_image_path = os.path.join(base_dir, state_image)
             orig_image = self.load_image(state_image_path)
             self._orig_images.append(orig_image)
-            scaled_image = self._resize(orig_image, SCREEN_WIDTH, SCREEN_HEIGHT)
+            scaled_image = self._resize(orig_image, width, height)
             self._scaled_images.append(scaled_image)
         self._image = image = self.get_first_image()
         if image is not None:
@@ -308,11 +308,18 @@ class App:
         except KeyError:
             app_config = self._config["app"] = {"background_color": "magenta", 
                 "caption": DEFAULT_CAPTION, 
-                "host": DEFAULT_HOST, "port": DEFAULT_PORT}
+                "host": DEFAULT_HOST, "port": DEFAULT_PORT,
+                "width": SCREEN_WIDTH, "height": SCREEN_HEIGHT}
         self._background_color: str = app_config.get("background_color", "magenta")
         self._host: str = app_config.get("host", DEFAULT_HOST) 
-        self._port: int = int(app_config.get("port", DEFAULT_PORT)) 
+        self._port: int = int(app_config.get("port", DEFAULT_PORT))
+        self._s_width: int = int(app_config.get("width", SCREEN_WIDTH))
+        self._s_height: int = int(app_config.get("height", SCREEN_HEIGHT))
         self._app_config = app_config
+
+    def save_config(self):
+        with open('config.ini', 'w') as config_fh:
+            self._config.write(config_fh)
 
     def load_states(self):
         config = self._config
@@ -336,8 +343,8 @@ class App:
             if layers is not None:
                 for layer_name in layers.split(","):
                     layer_list.append(layer_name.strip())
-            png_tuber_state = PNGTuberState((0, 0), base_dir, eo_mc, ec_mc, eo_mo, ec_mo)
-            png_tuber_state.resize(self._s_width, self._s_height)
+            png_tuber_state = PNGTuberState((0, 0), base_dir, eo_mc, ec_mc, eo_mo, ec_mo, self._s_width, self._s_height)
+            #png_tuber_state.resize(self._s_width, self._s_height)
             state_group = StateGroup()
             state_group.add(png_tuber_state)
             for layer_name in layer_list:
@@ -352,7 +359,7 @@ class App:
                     else:
                         loop_pause = [int(value) for value in tmp]
                 image_path = os.path.join(base_dir, image)
-                layer = Layer(image_path, loop_pause)
+                layer = Layer(image_path, self._s_width, self._s_height, loop_pause)
                 state_group.add(layer)
             states.append(state_group)
 
@@ -393,7 +400,7 @@ class App:
         pg.init()
         pg.display.set_caption(self._app_config.get("caption", DEFAULT_CAPTION))
 
-        screen = pg.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT], pg.RESIZABLE)
+        screen = pg.display.set_mode([self._s_width, self._s_height], pg.RESIZABLE)
         background_color = self._background_color
         logger.debug(f"background_color: {background_color}")
         if background_color.startswith("#"):
@@ -475,7 +482,10 @@ class App:
                 elif event.type == pg.VIDEORESIZE:
                     self._s_width, self._s_height = screen.get_width(), screen.get_height()
                     s_width, s_height = self._s_width, self._s_height
+                    self._app_config["width"] = str(s_width)
+                    self._app_config["height"] = str(s_height)
                     png_tuber_state.resize(s_width, s_height)
+                    self.save_config()
                     pg.display.update()
                     #screen = pg.display.set_mode([s_width, s_height], pg.RESIZABLE)
                 elif event.type == pg.VIDEOEXPOSE:
