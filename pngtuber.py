@@ -78,13 +78,16 @@ def scale(img, dimension):
 class Layer(pg.sprite.Sprite):
 
     rect = None
+    _loops: int = -1
     _loop_pause: int | list = None
     _loop_end_time: float = None
-    __loop_pause: int = None
     _random_loop_pause: bool = False
 
-    def __init__(self, image_path, width, height, loop_pause=None):
+    def __init__(self, image_path, width, height, loops=-1, loop_pause=None):
         super().__init__()
+        if loop_pause is not None:
+            loops = 0
+        self._loops = loops
         self.loop_pause = loop_pause
         self._last_resize_req = (width, height)
         orig_image = self.load_image(image_path)
@@ -100,7 +103,7 @@ class Layer(pg.sprite.Sprite):
         if animated_images_supported:
             for file_ext in ANIMATED_FILE_EXT:
                 if image_path.lower().endswith(file_ext):
-                    image = gif_pg.load(image_path, 0).convert_alpha()
+                    image = gif_pg.load(image_path, self._loops).convert_alpha()
                     break
             else:
                 image = pg.image.load(image_path).convert_alpha()
