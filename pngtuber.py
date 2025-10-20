@@ -333,6 +333,31 @@ class App:
         with open('config.ini', 'w') as config_fh:
             self._config.write(config_fh)
 
+    def load_layers(self, layer_list):
+        for layer_name in layer_list:
+            layer_config = self._layers_config[layer_name]
+            base_dir = layer_config["base_dir"]
+            image = layer_config["image"]
+            loop_pause = layer_config.get("loop_pause", None)
+            if loop_pause is not None:
+                tmp = loop_pause.split("-")
+                if len(tmp) == 1:
+                    loop_pause = int(loop_pause)
+                else:
+                    loop_pause = [int(value) for value in tmp]
+            loops = int(layer_config.get("loops", -1))
+            image_path = os.path.join(base_dir, image)
+            layer = Layer(image_path, self._s_width, self._s_height, loops, loop_pause)
+            logger.info(f"adding layer for image: {image_path}")
+            self._state_group.add(layer)
+
+    def _layers_str_to_list(self, layers_str: str) -> list:
+        layer_list: list = []
+        if layers_str is not None:
+            for layer_name in layers_str.split(","):
+                layer_list.append(layer_name.strip())
+        return layer_list
+
     def load_states(self):
         config = self._config
         self._states = states = []
@@ -350,29 +375,22 @@ class App:
                 eo_mc = state.get("eo_mc", None)
                 ec_mo = state.get("ec_mo", None)
                 eo_mo = state.get("eo_mo", None)
+
+            self._state_group = state_group = StateGroup()
+
+            # vvvv - front layers
             layers: str = state.get("layers", None)
-            layer_list: list = []
-            if layers is not None:
-                for layer_name in layers.split(","):
-                    layer_list.append(layer_name.strip())
+            layer_list: list = self._layers_str_to_list(layers)
+            # ^^^^
+            # vvvv - back layers
+            layers_back: str = state.get("layers.back", None)
+            layer_back_list: list = self._layers_str_to_list(layers_back)
+            # ^^^^
+            self.load_layers(layer_back_list)
             png_tuber_state = PNGTuberState((0, 0), base_dir, eo_mc, ec_mc, eo_mo, ec_mo, self._s_width, self._s_height)
             #png_tuber_state.resize(self._s_width, self._s_height)
-            state_group = StateGroup()
             state_group.add(png_tuber_state)
-            for layer_name in layer_list:
-                layer_config = self._layers_config[layer_name]
-                base_dir = layer_config["base_dir"]
-                image = layer_config["image"]
-                loop_pause = layer_config.get("loop_pause", None)
-                if loop_pause is not None:
-                    tmp = loop_pause.split("-")
-                    if len(tmp) == 1:
-                        loop_pause = int(loop_pause)
-                    else:
-                        loop_pause = [int(value) for value in tmp]
-                image_path = os.path.join(base_dir, image)
-                layer = Layer(image_path, self._s_width, self._s_height, loop_pause)
-                state_group.add(layer)
+            self.load_layers(layer_list)
             states.append(state_group)
 
     def get_next_command(self, s) -> bytes:
