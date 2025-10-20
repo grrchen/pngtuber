@@ -180,6 +180,13 @@ class PNGTuberState(Layer):
 
     rect = None
 
+    _talk: bool
+    _force_update: bool
+    _orig_images: list
+    _scaled_images: list
+    _current_frame: int
+    _last_resize_req: tuple
+
     def __init__(self, pos, base_dir, eo_mc, ec_mc, eo_mo, ec_mo, width: int, height: int):
         pg.sprite.Sprite.__init__(self)
         self._talk: bool = False
