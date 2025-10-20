@@ -82,6 +82,7 @@ class Layer(pg.sprite.Sprite):
     _loop_pause: int | list = None
     _loop_end_time: float = None
     _random_loop_pause: bool = False
+    _is_animated: bool = False
 
     def __init__(self, image_path, width, height, loops=-1, loop_pause=None):
         super().__init__()
@@ -104,6 +105,7 @@ class Layer(pg.sprite.Sprite):
             for file_ext in ANIMATED_FILE_EXT:
                 if image_path.lower().endswith(file_ext):
                     image = gif_pg.load(image_path, self._loops).convert_alpha()
+                    self._is_animated = True
                     break
             else:
                 image = pg.image.load(image_path).convert_alpha()
@@ -142,7 +144,7 @@ class Layer(pg.sprite.Sprite):
         pass
 
     def update(self):
-        if self._image.ended:
+        if self._is_animated and self._image.ended:
             if self._loop_end_time is None:
                 self._loop_end_time = time.time()
             if self.__loop_pause is not None and time.time() - self._loop_end_time < self.__loop_pause:
