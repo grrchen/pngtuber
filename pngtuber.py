@@ -81,6 +81,7 @@ class Layer(pg.sprite.Sprite):
     _loops: int = -1
     _loop_pause: int | list = None
     _loop_end_time: float = None
+    _loop_pause: int = None
     _random_loop_pause: bool = False
     _is_animated: bool = False
 
@@ -91,6 +92,7 @@ class Layer(pg.sprite.Sprite):
         self._loops = loops
         self.loop_pause = loop_pause
         self._last_resize_req = (width, height)
+        self._image_path = image_path
         orig_image = self.load_image(image_path)
         self._orig_image = orig_image
         w, h = orig_image.get_size()
@@ -147,13 +149,14 @@ class Layer(pg.sprite.Sprite):
         if self._is_animated and self._image.ended:
             if self._loop_end_time is None:
                 self._loop_end_time = time.time()
-            if self.__loop_pause is not None and time.time() - self._loop_end_time < self.__loop_pause:
+            if self._loop_pause is not None and time.time() - self._loop_end_time < self._current_loop_pause:
                 return
             else:
                 self._image.reset()
                 self._loop_end_time = None
                 if self._random_loop_pause:
-                    self.__loop_pause = random.randint(*self._loop_pause)
+                    self._current_loop_pause = random.randint(*self._loop_pause)
+                    logger.debug(f"New loop pause for layer {self._image_path}")
 
     @property
     def loop_pause(self):
@@ -163,10 +166,14 @@ class Layer(pg.sprite.Sprite):
     def loop_pause(self, value):
         self._loop_pause = value
         if isinstance(value, (list, tuple)):
-            self.__loop_pause = random.randint(*value)
-            self._random_loop_pause = True
+            if len(value) == 2:
+                self._loop_pause = value
+                self._current_loop_pause = random.randint(*self._loop_pause)
+                self._random_loop_pause = True
+            else:
+                logger.error(f"Invalid value: {value}")
         elif isinstance(value, int):
-            self.__loop_pause = value
+            self._loop_pause = self._current_loop_pause = value
 
 
 class PNGTuberState(Layer):
